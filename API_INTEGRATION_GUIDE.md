@@ -1,23 +1,42 @@
 # Backend API Integration Requirements Guide
 
-This document outlines the technical requirements and JSON payload specifications for backend developers to implement so that the Google Review Assistant frontend (`https://buzl.rclk.in`) can transition from Mock Mode to your live APIs.
+This document outlines the technical requirements, hosting models, and JSON payload specifications for backend developers to implement so that the Google Review Assistant frontend can transition from Mock Mode to your live APIs.
 
 ---
 
-## 🔒 1. Cross-Origin Resource Sharing (CORS)
-Since the frontend is hosted on `https://buzl.rclk.in` and the API is hosted on `https://dev.web.gobuzl.com`, the API server **MUST** return correct CORS headers to prevent browsers from blocking requests:
+## 🔒 1. Hosting Models & Cross-Origin (CORS) Considerations
 
-*   **Allowed Origin**: `Access-Control-Allow-Origin: https://buzl.rclk.in` (or `*`)
-*   **Allowed Headers**: `Access-Control-Allow-Headers: Content-Type, Authorization`
-*   **Allowed Methods**: `Access-Control-Allow-Methods: GET, POST, OPTIONS`
-*   *Note: Ensure preflight `OPTIONS` requests respond with a `204 No Content` or `200 OK` containing these headers.*
+To accommodate both testing environments and production deployment, the frontend includes a dynamic base URL resolver:
+```javascript
+const API_CONFIG = {
+  baseUrl: window.location.hostname.includes('gobuzl.com') ? '/api' : 'https://dev.web.gobuzl.com/api',
+  ...
+};
+```
+
+This supports two distinct hosting models:
+
+### Model A: Same-Origin Deployment (Production — Recommended)
+When you deploy the static HTML frontend files directly onto your main server (on any `gobuzl.com` domain/subdomain):
+*   **API Path**: The frontend will automatically resolve requests to relative paths (e.g. `/api/locations/...`).
+*   **CORS Gaps**: Since both the page and the API share the same domain name, the browser treats it as **Same-Origin**.
+*   **Backend Requirement**: **No CORS headers are required on the backend API server in this model.**
+
+### Model B: Cross-Origin Deployment (Temporary Testing)
+When you host the frontend on an external domain (like the temporary testing server `buzl.rclk.in`) while keeping the API on `dev.web.gobuzl.com`:
+*   **CORS Requirement**: The API server at `dev.web.gobuzl.com` **MUST** return CORS headers to prevent the browser from blocking requests:
+    *   `Access-Control-Allow-Origin: https://buzl.rclk.in` (or `*` during development)
+    *   `Access-Control-Allow-Headers: Content-Type, Authorization`
+    *   `Access-Control-Allow-Methods: GET, POST, OPTIONS`
+    *   *Note: Preflight `OPTIONS` requests must return a `200 OK` or `204 No Content` containing these headers.*
 
 ---
 
 ## 📋 2. API 1: Fetch Questions (`reviewquestions`)
 
 *   **Method**: `GET`
-*   **Endpoint**: `https://dev.web.gobuzl.com/api/locations/{locationId}/reviewquestions`
+*   **Endpoint (Production)**: `/api/locations/{locationId}/reviewquestions`
+*   **Endpoint (Testing)**: `https://dev.web.gobuzl.com/api/locations/{locationId}/reviewquestions`
 *   **Headers**:
     *   `Authorization: Basic <base64(locationId + ":")>`
 
@@ -54,15 +73,16 @@ Since the frontend is hosted on `https://buzl.rclk.in` and the API is hosted on 
 ```
 
 ### Critical Keys for Frontend:
-1.  **`resp.placeId`** (or `googlePlaceId`, or `reviewUrl`): Must return the Google Place ID of the business. The frontend uses this to generate the Google Review redirect link. If missing, it defaults to Buzl.
-2.  **`questions[0].responseGuidance.location`**: Must return the actual business name. The frontend extracts this to update header logos and instruction subtitles dynamically.
+1.  **`resp.placeId`** (or `googlePlaceId` / `reviewUrl`): The Google Place ID of the business. The frontend uses this to generate the Google Review redirect link dynamically. If missing, it defaults to Buzl.
+2.  **`questions[0].responseGuidance.location`**: The business name. The frontend extracts this to update header logo text and instruction subheadings dynamically.
 
 ---
 
 ## 🔄 3. API 2: Review Generation (`reviewsgeneration`)
 
 *   **Method**: `POST`
-*   **Endpoint**: `https://dev.web.gobuzl.com/api/locations/{locationId}/reviewsgeneration`
+*   **Endpoint (Production)**: `/api/locations/{locationId}/reviewsgeneration`
+*   **Endpoint (Testing)**: `https://dev.web.gobuzl.com/api/locations/{locationId}/reviewsgeneration`
 *   **Headers**:
     *   `Content-Type: application/json`
     *   `Authorization: Basic <base64(locationId + ":")>`
@@ -110,6 +130,7 @@ Since the frontend is hosted on `https://buzl.rclk.in` and the API is hosted on 
 ---
 
 ## 🛠️ 4. Local Testing & Mock Mode Toggle
+
 The frontend contains a configuration toggle:
 ```javascript
 const host = window.location.hostname;
@@ -117,5 +138,5 @@ if (host === 'localhost' || host === '127.0.0.1' || urlParams.get('mock') === 't
   API_CONFIG.isLocalMock = true;
 }
 ```
-*   When `isLocalMock` is `true`, it bypasses CORS and basic auth entirely by reading local mock JSON files from the `/API sample json/` directory.
-*   Once backend Basic Authentication and CORS are fixed, access the site normally (without `?mock=true`) to fetch from the live endpoints.
+*   When `isLocalMock` is `true`, it bypasses network CORS and live basic auth entirely by reading local mock JSON files from the `/API sample json/` directory.
+*   Once backend Basic Authentication and CORS are fixed on your dev servers, access the site normally (without `?mock=true`) to fetch from the live endpoints.
