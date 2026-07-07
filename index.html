@@ -1970,13 +1970,23 @@
       isLocalMock: false, // Set dynamically based on host
       getQuestionsUrl: (locId) => {
         if (API_CONFIG.isLocalMock) {
-          return `./API%20sample%20json/reviewquestions-locn-dev-269.json`;
+          let pathname = window.location.pathname;
+          if (pathname.endsWith('/')) {
+            pathname = pathname.slice(0, -1);
+          }
+          const base = pathname.substring(0, pathname.lastIndexOf('/') + 1);
+          return `${window.location.origin}${base}API%20sample%20json/reviewquestions-locn-dev-269.json`;
         }
         return `${API_CONFIG.baseUrl}/locations/${locId}/reviewquestions`;
       },
       getGenerationUrl: (locId) => {
         if (API_CONFIG.isLocalMock) {
-          return `./API%20sample%20json/reviewsgeneration.txt`;
+          let pathname = window.location.pathname;
+          if (pathname.endsWith('/')) {
+            pathname = pathname.slice(0, -1);
+          }
+          const base = pathname.substring(0, pathname.lastIndexOf('/') + 1);
+          return `${window.location.origin}${base}API%20sample%20json/reviewsgeneration.txt`;
         }
         return `${API_CONFIG.baseUrl}/locations/${locId}/reviewsgeneration`;
       },
