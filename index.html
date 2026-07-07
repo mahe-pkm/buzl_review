@@ -1966,7 +1966,7 @@
 
     // Configuration for APIs
     const API_CONFIG = {
-      baseUrl: 'https://dev.web.gobuzl.com/api',
+      baseUrl: window.location.hostname.includes('gobuzl.com') ? '/api' : 'https://dev.web.gobuzl.com/api',
       isLocalMock: false, // Set dynamically based on host
       getQuestionsUrl: (locId) => {
         if (API_CONFIG.isLocalMock) {
