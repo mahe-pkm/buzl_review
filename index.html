@@ -1582,7 +1582,7 @@
 
         <!-- STEP 2 -->
         <div class="form-step" id="step-2">
-          <div class="form-group">
+          <div class="form-group" id="static-likes-group">
             <div class="form-label-wrap">
               <label class="form-label">What did you like?</label>
               <span class="label-optional">Optional</span>
@@ -2049,6 +2049,10 @@
       const staticContainer = document.getElementById('static-questions-container');
       if (dynamicContainer) dynamicContainer.style.display = 'none';
       if (staticContainer) staticContainer.style.display = 'block';
+      
+      const likesGroup = document.getElementById('static-likes-group');
+      if (likesGroup) likesGroup.style.display = 'block';
+      
       updateBrandUI('𝐁𝐮𝐳𝐥 𝐃𝐢𝐠𝐢𝐭𝐚𝐥 𝐒𝐨𝐥𝐮𝐭𝐢𝐨𝐧𝐬');
     }
 
@@ -2105,6 +2109,9 @@
             GOOGLE_REVIEW_LINK = data.resp.reviewUrl;
           }
           
+          const likesGroup = document.getElementById('static-likes-group');
+          if (likesGroup) likesGroup.style.display = 'none';
+
           renderDynamicQuestions(state.questions);
         } else {
           throw new Error("Empty questions list received.");
@@ -3577,6 +3584,11 @@
 
       if (state.isDynamic) {
         renderDynamicQuestions(state.questions);
+        const likesGroup = document.getElementById('static-likes-group');
+        if (likesGroup) likesGroup.style.display = 'none';
+      } else {
+        const likesGroup = document.getElementById('static-likes-group');
+        if (likesGroup) likesGroup.style.display = 'block';
       }
 
       // Re-apply selected class to default choices
