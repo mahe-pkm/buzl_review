@@ -4,6 +4,19 @@ All notable changes to the **Buzl Digital Solutions — Google Review Assistant*
 
 ---
 
+## [2.1.0] - 2026-07-07
+
+### Added
+*   **🔗 LocationID Search & Path Routing**: Enabled the app to parse dynamic `locationId` values from the URL path (`/locn-dev-397`) or query params (`?locationId=...`).
+*   **📋 Dynamic Questions Integration (API 1)**: Integrated dynamic review questions fetched from the backend API (`GET /api/locations/{locationId}/reviewquestions`) using Basic Authentication.
+*   **🧬 Local Mock Testing Mode**: Added automatic mock testing redirects. When served on `localhost`, the app redirects calls to local assets (`/API sample json/reviewquestions-locn-dev-269.json` and `/API sample json/reviewsgeneration.txt`), allowing end-to-end testing with zero server dependency.
+*   **✨ Dynamic Brand Personalization**: Extracted business locations from API responses to update headers, tags, and instructions dynamically.
+*   **🔄 AI Review Generation (API 2)**: Replaced client-side rendering with backend review generation (`POST /api/locations/{locationId}/reviewsgeneration`).
+*   **📑 Multiple Draft Variants UI**: Rendered clickable tab selectors to view and copy between multiple review draft variants, fully updating length/quality metrics on tab click.
+*   **🛡️ Graceful Static Fallbacks**: Implemented robust exception safeguards that fall back to default template configurations if APIs fail or the locationId is missing.
+
+---
+
 ## [2.0.0] - 2026-06-30
 
 ### Added
