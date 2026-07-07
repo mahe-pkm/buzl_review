@@ -140,3 +140,8 @@ if (host === 'localhost' || host === '127.0.0.1' || urlParams.get('mock') === 't
 ```
 *   When `isLocalMock` is `true`, it bypasses network CORS and live basic auth entirely by reading local mock JSON files from the `/API sample json/` directory.
 *   Once backend Basic Authentication and CORS are fixed on your dev servers, access the site normally (without `?mock=true`) to fetch from the live endpoints.
+
+### 🧪 Example Testing URLs:
+*   **Path-Based Route (Mock)**: `https://buzl.rclk.in/locn-dev-397?mock=true` (Extracts `locn-dev-397` from path, runs in Mock Mode)
+*   **Query-Based Route (Mock)**: `https://buzl.rclk.in/?locationId=locn-dev-269&mock=true` (Extracts `locn-dev-269` from query param, runs in Mock Mode)
+*   **Live Route (Production)**: `https://buzl.rclk.in/locn-dev-397` (Extracts `locn-dev-397` from path, runs live network call)
