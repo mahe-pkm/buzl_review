@@ -24,6 +24,7 @@
       --primary-light: #EFF6FF;
       --text-main: #0F172A;
       --text-secondary: #475569;
+      --text-muted: #64748B;
       --success: #16A34A;
       --success-light: #F0FDF4;
       --warning: #F59E0B;
@@ -835,11 +836,16 @@
       align-items: center;
       gap: 0.375rem;
       transition: all var(--transition-fast);
+      min-height: 38px;
     }
 
     .chip-item:hover {
       border-color: #CBD5E1;
       color: var(--text-main);
+    }
+
+    .chip-item:active {
+      transform: scale(0.96);
     }
 
     .chip-item.selected {
@@ -1285,6 +1291,9 @@
       font-size: 0.812rem;
       justify-content: center;
       gap: 0.375rem;
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
     }
 
     .draft-secondary-actions .btn-secondary svg {
@@ -2287,7 +2296,7 @@
       </form>
 
       <!-- Loading State screen -->
-      <div class="loading-wrapper" id="loading-screen">
+      <div class="loading-wrapper" id="loading-screen" aria-live="polite" aria-busy="false">
         <div class="skeleton-wrapper">
           <div class="skeleton-block skeleton-title"></div>
           <div class="skeleton-block skeleton-textarea"></div>
@@ -2474,7 +2483,7 @@
   </footer>
 
   <!-- Toast Notification element -->
-  <div class="toast-container" id="toast-notify">
+  <div class="toast-container" id="toast-notify" role="alert" aria-live="assertive">
     <svg width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" id="toast-success-icon">
       <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
     </svg>
@@ -2581,9 +2590,7 @@
       if (state.apiVariants && state.apiVariants.length > 0) {
         document.getElementById('assistant-form').style.display = 'none';
         document.getElementById('progress-wrapper').style.display = 'none';
-        if (document.getElementById('loading-screen')) {
-          document.getElementById('loading-screen').style.display = 'none';
-        }
+        toggleLoadingScreen(false);
         
         renderVariantsTabs(state.apiVariants);
         const initialText = state.apiVariants[0].text;
@@ -2851,6 +2858,8 @@
         q.suggestedResponses.forEach(resp => {
           const card = document.createElement('div');
           card.className = 'option-card';
+          card.setAttribute('role', 'radio');
+          card.setAttribute('aria-checked', state.answers[q.qid] === resp ? 'true' : 'false');
           
           // Handle specific styling for experience ratings if applicable
           // Dynamic questions should use consistent premium blue selected styling
@@ -2880,6 +2889,7 @@
       const siblingCards = element.parentElement.querySelectorAll('.option-card');
       siblingCards.forEach(card => card.classList.remove('selected'));
       element.classList.add('selected');
+      updateAriaChecked(siblingCards, element);
       triggerPulse(element);
       
       state.answers[qid] = responseVal;
@@ -2971,6 +2981,7 @@
       const siblingCards = element.parentElement.querySelectorAll('.option-card');
       siblingCards.forEach(card => card.classList.remove('selected'));
       element.classList.add('selected');
+      updateAriaChecked(siblingCards, element);
       triggerPulse(element);
       state.service = serviceVal;
       clearWarning();
@@ -2988,6 +2999,7 @@
       const siblingCards = element.parentElement.querySelectorAll('.option-card');
       siblingCards.forEach(card => card.classList.remove('selected'));
       element.classList.add('selected');
+      updateAriaChecked(siblingCards, element);
       triggerPulse(element);
       state.experience = ratingVal;
       clearWarning();
@@ -3003,6 +3015,7 @@
     // Step 2: Toggle Like Checkbox Chips
     function toggleLike(element, itemVal) {
       element.classList.toggle('selected');
+      element.setAttribute('aria-checked', element.classList.contains('selected') ? 'true' : 'false');
       triggerPulse(element);
       if (element.classList.contains('selected')) {
         if (!state.likes.includes(itemVal)) {
@@ -3019,6 +3032,7 @@
       const siblingCards = element.parentElement.querySelectorAll('.option-card');
       siblingCards.forEach(card => card.classList.remove('selected'));
       element.classList.add('selected');
+      updateAriaChecked(siblingCards, element);
       triggerPulse(element);
       state.style = styleVal;
       clearWarning();
@@ -3040,6 +3054,7 @@
       const siblingCards = element.parentElement.querySelectorAll('.option-card');
       siblingCards.forEach(card => card.classList.remove('selected'));
       element.classList.add('selected');
+      updateAriaChecked(siblingCards, element);
       triggerPulse(element);
       
       state.language = langVal;
@@ -3055,6 +3070,7 @@
       const englishCard = document.getElementById('lang-card-english');
       if (englishCard) {
         englishCard.classList.remove('selected');
+        englishCard.setAttribute('aria-checked', 'false');
       }
 
       const dropdownWrap = selectElem.closest('.lang-dropdown-wrapper');
@@ -3419,7 +3435,7 @@
     async function generateReviewProcess() {
       document.getElementById('assistant-form').style.display = 'none';
       document.getElementById('progress-wrapper').style.display = 'none';
-      document.getElementById('loading-screen').style.display = 'flex';
+      toggleLoadingScreen(true);
 
       // Hide variants tabs by default
       const tabsContainer = document.getElementById('variants-tab-container');
@@ -3484,7 +3500,7 @@
 
           const data = await response.json();
           console.log("AI Generation Response payload:", data);
-          document.getElementById('loading-screen').style.display = 'none';
+          toggleLoadingScreen(false);
 
           if (data && data.resp && data.resp.variants && data.resp.variants.length > 0) {
             function withBusinessName(text) {
@@ -3516,7 +3532,7 @@
         } catch (err) {
           console.error("API 2 generation error:", err);
           showToast("Error: " + err.message + " (Using fallback)", "error");
-          document.getElementById('loading-screen').style.display = 'none';
+          toggleLoadingScreen(false);
           
           // Force fallback to static generation
           state.isDynamic = false;
@@ -3525,7 +3541,7 @@
       } else {
         // Fallback static generation
         setTimeout(() => {
-          document.getElementById('loading-screen').style.display = 'none';
+          toggleLoadingScreen(false);
           generateStaticReview();
         }, 1000);
       }
@@ -4207,10 +4223,9 @@
       } else {
         // For static: show shimmer briefly, then swap in the new draft
         const draftSection = document.getElementById('draft-section');
-        const loadingScreen = document.getElementById('loading-screen');
 
         draftSection.style.display = 'none';
-        loadingScreen.style.display = 'flex';
+        toggleLoadingScreen(true);
 
         setTimeout(() => {
           const reviewText = generateReviewDraftText();
@@ -4220,7 +4235,7 @@
           state.apiVariants = [{ index: 0, text: reviewText }];
           saveSessionState();
 
-          loadingScreen.style.display = 'none';
+          toggleLoadingScreen(false);
           draftSection.style.display = 'block';
           showToast('Draft updated with a new version.');
         }, 1200);
@@ -4468,6 +4483,20 @@
       window.open(GOOGLE_REVIEW_LINK, '_blank');
     }
 
+    function updateAriaChecked(siblings, selectedElement) {
+      siblings.forEach(el => {
+        el.setAttribute('aria-checked', el === selectedElement ? 'true' : 'false');
+      });
+    }
+
+    function toggleLoadingScreen(show) {
+      const loader = document.getElementById('loading-screen');
+      if (loader) {
+        loader.style.display = show ? 'flex' : 'none';
+        loader.setAttribute('aria-busy', show ? 'true' : 'false');
+      }
+    }
+
     function transitionToSuccess() {
       document.getElementById('draft-section').style.display = 'none';
       document.getElementById('success-screen').style.display = 'block';
@@ -4576,7 +4605,13 @@
       const interactiveElements = document.querySelectorAll('.option-card, .chip-item');
       interactiveElements.forEach(el => {
         el.setAttribute('tabindex', '0');
-        el.setAttribute('role', 'button');
+        
+        // Assign WCAG role and default check state based on classes
+        const isChip = el.classList.contains('chip-item');
+        el.setAttribute('role', isChip ? 'checkbox' : 'radio');
+        
+        const isSelected = el.classList.contains('selected');
+        el.setAttribute('aria-checked', isSelected ? 'true' : 'false');
         
         el.addEventListener('keydown', (e) => {
           if (e.key === 'Enter' || e.key === ' ') {
