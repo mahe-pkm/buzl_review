@@ -14,4 +14,6 @@ Desktop.ini
 
 # Project custom ignores
 Ver2/
+Example folder/
+*.pdf
 
