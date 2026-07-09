@@ -17,4 +17,7 @@ Ver2/
 Example folder/
 *.pdf
 diagnose.html
+*.pem
+*.zip
+
 
