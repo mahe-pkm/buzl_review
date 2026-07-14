@@ -331,6 +331,10 @@
       scroll-margin-top: 88px;
     }
 
+    #draft-section {
+      margin-top: 2.25rem;
+    }
+
     /* Progress Indicator */
     .progress-wrapper {
       margin-bottom: 2rem;
@@ -886,9 +890,15 @@
     }
 
     .form-label {
+      display: block;
+      margin-bottom: 0.625rem;
       font-weight: 600;
       font-size: 0.937rem;
       color: var(--text-main);
+    }
+
+    .form-label-wrap .form-label {
+      margin-bottom: 0;
     }
 
     .label-optional {
@@ -1290,7 +1300,7 @@
 
     .draft-secondary-actions {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      grid-template-columns: 1fr;
       gap: 0.625rem;
     }
 
@@ -1976,6 +1986,15 @@
       border-color: var(--border-focus);
       box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
     }
+
+    .other-input-wrapper {
+      width: 100%;
+    }
+
+    .other-input-wrapper .input-custom {
+      width: 100%;
+      box-sizing: border-box;
+    }
     
     .input-error-text {
       color: #DC2626;
@@ -2642,20 +2661,6 @@
               </svg>
               <span>Regen</span>
             </button>
-            
-            <button class="btn-secondary btn-disabled" id="btn-copy" type="button" onclick="copyReviewOnly()">
-              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2" />
-              </svg>
-              <span>Copy</span>
-            </button>
-
-            <button class="btn-secondary" id="btn-modify" type="button" onclick="modifyAnswers()">
-              <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-              </svg>
-              <span>Edit</span>
-            </button>
           </div>
         </div>
       </div>
@@ -3080,6 +3085,66 @@
       });
     }
 
+    function isQuestionVisible(q) {
+      if (!q.questionGroup || !q.questionGroup.showWhen || q.questionGroup.showWhen.length === 0) {
+        return true;
+      }
+      
+      const showWhen = q.questionGroup.showWhen;
+      const groupId = q.questionGroup.groupId;
+      const order = q.questionGroup.order;
+      
+      // Find parent questions in the same group with a lower order/index
+      const parents = state.questions.filter(parentQ => 
+        parentQ.questionGroup && 
+        parentQ.questionGroup.groupId === groupId && 
+        (parentQ.questionGroup.order !== undefined && order !== undefined 
+          ? parentQ.questionGroup.order < order 
+          : state.questions.indexOf(parentQ) < state.questions.indexOf(q))
+      );
+      
+      if (parents.length === 0) {
+        return true;
+      }
+      
+      // The condition is met if any parent question's selected answer matches a value in showWhen
+      return parents.some(parentQ => {
+        const parentAns = state.answers[parentQ.qid];
+        return parentAns && showWhen.includes(parentAns);
+      });
+    }
+
+    function updateQuestionsVisibility() {
+      if (!state.isDynamic || !state.questions) return;
+      
+      state.questions.forEach(q => {
+        const groupEl = document.getElementById(`dynamic-group-${q.qid}`);
+        if (!groupEl) return;
+        
+        const visible = isQuestionVisible(q);
+        if (visible) {
+          groupEl.style.display = 'block';
+        } else {
+          groupEl.style.display = 'none';
+          // Clean up answers and UI selections for hidden questions
+          if (state.answers[q.qid] !== undefined) {
+            delete state.answers[q.qid];
+            const cards = groupEl.querySelectorAll('.option-card');
+            cards.forEach(card => {
+              card.classList.remove('selected');
+              card.setAttribute('aria-checked', 'false');
+            });
+            const otherWrapper = document.getElementById(`other-wrapper-${q.qid}`);
+            if (otherWrapper) {
+              otherWrapper.style.display = 'none';
+              const otherInput = otherWrapper.querySelector('input');
+              if (otherInput) otherInput.value = '';
+            }
+          }
+        }
+      });
+    }
+
     function renderDynamicQuestions(questions) {
       const container = document.getElementById('dynamic-questions-container');
       if (!container) return;
@@ -3105,12 +3170,14 @@
           const card = document.createElement('div');
           card.className = 'option-card';
           card.setAttribute('role', 'radio');
-          card.setAttribute('aria-checked', state.answers[q.qid] === resp ? 'true' : 'false');
+          
+          const isSelected = state.answers[q.qid] === resp || (resp === 'Other' && state.answers[q.qid] && (state.answers[q.qid] === 'Other' || state.answers[q.qid].startsWith('Other:')));
+          card.setAttribute('aria-checked', isSelected ? 'true' : 'false');
           
           // Handle specific styling for experience ratings if applicable
           // Dynamic questions should use consistent premium blue selected styling
           
-          if (state.answers[q.qid] === resp) {
+          if (isSelected) {
             card.classList.add('selected');
           }
           
@@ -3127,8 +3194,36 @@
         });
         
         formGroup.appendChild(grid);
+
+        // Check if suggestedResponses contains "Other" and add detail input
+        const hasOther = q.suggestedResponses.includes('Other');
+        if (hasOther) {
+          const otherWrapper = document.createElement('div');
+          otherWrapper.className = 'other-input-wrapper';
+          otherWrapper.id = `other-wrapper-${q.qid}`;
+          otherWrapper.style.display = 'none';
+          otherWrapper.style.marginTop = '0.75rem';
+          
+          otherWrapper.innerHTML = `
+            <input type="text" class="input-custom" id="other-input-${q.qid}" placeholder="Please specify..." oninput="handleOtherInput('${q.qid}')" />
+          `;
+          formGroup.appendChild(otherWrapper);
+
+          const storedAns = state.answers[q.qid];
+          if (storedAns && (storedAns === 'Other' || storedAns.startsWith('Other:'))) {
+            otherWrapper.style.display = 'block';
+            const otherInput = otherWrapper.querySelector('input');
+            if (otherInput) {
+              otherInput.value = storedAns.startsWith('Other: ') ? storedAns.substring(7) : '';
+            }
+          }
+        }
+        
         container.appendChild(formGroup);
       });
+
+      // Update question visibility based on initial answers (if any)
+      updateQuestionsVisibility();
     }
 
     function selectDynamicResponse(element, qid, responseVal) {
@@ -3138,39 +3233,145 @@
       updateAriaChecked(siblingCards, element);
       triggerPulse(element);
       
-      state.answers[qid] = responseVal;
+      const otherWrapper = document.getElementById(`other-wrapper-${qid}`);
+      if (responseVal === 'Other') {
+        if (otherWrapper) {
+          otherWrapper.style.display = 'block';
+          const otherInput = document.getElementById(`other-input-${qid}`);
+          if (otherInput) {
+            otherInput.focus();
+            state.answers[qid] = otherInput.value.trim() ? `Other: ${otherInput.value.trim()}` : 'Other';
+          } else {
+            state.answers[qid] = 'Other';
+          }
+        } else {
+          state.answers[qid] = 'Other';
+        }
+      } else {
+        if (otherWrapper) {
+          otherWrapper.style.display = 'none';
+          const otherInput = document.getElementById(`other-input-${qid}`);
+          if (otherInput) otherInput.value = '';
+        }
+        state.answers[qid] = responseVal;
+      }
+      
       clearWarning();
+      
+      // Update visibility of subsequent conditional questions
+      updateQuestionsVisibility();
+      
       saveSessionState();
       
-      // Auto-scroll to next group or next step button
-      const currentGroup = element.closest('.form-group');
-      const nextGroup = currentGroup.nextElementSibling;
-      if (nextGroup && nextGroup.style.display !== 'none' && nextGroup.classList.contains('form-group')) {
-        nextGroup.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      } else if (!state.questions || state.questions.length < 2) {
-        const btnNext = document.getElementById('btn-next');
-        if (btnNext) {
-          btnNext.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      // Auto-scroll to next visible group or next step button (skip if selecting Other)
+      if (responseVal !== 'Other') {
+        const currentGroup = element.closest('.form-group');
+        let nextGroup = currentGroup.nextElementSibling;
+        while (nextGroup && nextGroup.classList.contains('form-group') && nextGroup.style.display === 'none') {
+          nextGroup = nextGroup.nextElementSibling;
         }
+        
+        if (nextGroup && nextGroup.style.display !== 'none' && nextGroup.classList.contains('form-group')) {
+          nextGroup.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } else {
+          const btnNext = document.getElementById('btn-next');
+          if (btnNext) {
+            btnNext.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+        }
+      }
+    }
+
+    function handleOtherInput(qid) {
+      const otherInput = document.getElementById(`other-input-${qid}`);
+      if (otherInput) {
+        const val = otherInput.value.trim();
+        state.answers[qid] = val ? `Other: ${val}` : 'Other';
+        saveSessionState();
       }
     }
 
     function inferExperienceLevel() {
       if (!state.isDynamic) return state.experience;
       
-      const answersList = Object.values(state.answers).map(a => a.toLowerCase());
-      if (answersList.some(a => ['excellent', 'outstanding', 'amazing', 'perfect', 'great', 'extremely happy', 'superb'].some(k => a.includes(k)))) {
+      const textsToAnalyze = [
+        ...Object.values(state.answers),
+        state.detail || ''
+      ].map(a => a.toLowerCase());
+
+      if (textsToAnalyze.some(a => ['excellent', 'outstanding', 'amazing', 'perfect', 'great', 'extremely happy', 'superb', 'highly recommend', 'best'].some(k => a.includes(k)))) {
         return 'Excellent';
       }
-      if (answersList.some(a => ['good', 'friendly', 'knowledgeable', 'satisfied'].some(k => a.includes(k)))) {
+      if (textsToAnalyze.some(a => ['good', 'friendly', 'knowledgeable', 'satisfied', 'happy', 'nice'].some(k => a.includes(k)))) {
         return 'Good';
       }
-      if (answersList.some(a => ['average', 'ok', 'okay', 'satisfactory', 'normal'].some(k => a.includes(k)))) {
+      if (textsToAnalyze.some(a => ['average', 'ok', 'okay', 'satisfactory', 'normal', 'moderate', 'mixed'].some(k => a.includes(k)))) {
         return 'Average';
       }
-      if (answersList.some(a => ['disappointing', 'poor', 'bad', 'needs improvement', 'slow', 'difficult'].some(k => a.includes(k)))) {
-        return 'Needs Improvement';
+      if (textsToAnalyze.some(a => ['poor', 'bad', 'unsatisfied', 'slow', 'expensive', 'disappointed', 'worst', 'no use', 'waste', 'useless', 'not good', 'distracting', 'not conducive', 'difficult'].some(k => a.includes(k)))) {
+        return 'Poor';
       }
+      
+      return 'Excellent'; // default fallback
+    }
+
+    function inferExperienceFromText(text) {
+      if (!text) return 'Excellent';
+      
+      const lowerText = text.toLowerCase();
+
+      // Negative sentiment keywords
+      const negativeWords = [
+        'poor', 'bad', 'unsatisfied', 'slow', 'expensive', 'disappointed', 'worst', 
+        'no use', 'waste', 'useless', 'not good', 'distracting', 'not conducive', 
+        'difficult', 'horrible', 'terrible', 'awful', 'hate', 'rude', 'unhelpful', 
+        'delay', 'frustrating', 'regret', 'avoid', 'unprofessional', 'failed',
+        'disappointing', 'would not recommend'
+      ];
+      
+      // Mixed/neutral sentiment keywords
+      const mixedWords = [
+        'average', 'ok', 'okay', 'satisfactory', 'normal', 'moderate', 'mixed', 
+        'conducing', 'conducive', 'worthwhile', 'reasonable', 'satisfying'
+      ];
+      
+      // Positive sentiment keywords
+      const positiveWords = [
+        'excellent', 'outstanding', 'amazing', 'perfect', 'great', 'extremely happy', 
+        'superb', 'highly recommend', 'best', 'good', 'friendly', 'knowledgeable', 
+        'satisfied', 'happy', 'nice', 'wonderful', 'love', 'fantastic', 'awesome', 
+        'helpful', 'efficient', 'professional', 'early', 'recommend'
+      ];
+
+      let negCount = 0;
+      let posCount = 0;
+      let mixedCount = 0;
+
+      negativeWords.forEach(w => {
+        if (lowerText.includes(w)) negCount++;
+      });
+
+      positiveWords.forEach(w => {
+        if (lowerText.includes(w)) posCount++;
+      });
+
+      mixedWords.forEach(w => {
+        if (lowerText.includes(w)) mixedCount++;
+      });
+
+      if (negCount > 0 && negCount >= posCount) {
+        return 'Poor';
+      }
+      if (mixedCount > 0 && mixedCount >= posCount) {
+        return 'Average';
+      }
+      if (posCount > 0 && posCount > negCount) {
+        if (posCount >= 3 || lowerText.includes('excellent') || lowerText.includes('outstanding') || lowerText.includes('best') || lowerText.includes('perfect') || lowerText.includes('wonderful') || lowerText.includes('amazing') || lowerText.includes('superb')) {
+          return 'Excellent';
+        }
+        return 'Good';
+      }
+
       return 'Excellent'; // default fallback
     }
 
@@ -3317,16 +3518,32 @@
       const warningMessage = document.getElementById('warning-message');
 
       if (state.isDynamic) {
-        const unansweredCount = state.questions.length - Object.keys(state.answers).length;
-        if (unansweredCount > 0) {
+        const visibleQuestions = state.questions.filter(q => isQuestionVisible(q));
+        
+        // 1. Check for completely unanswered questions
+        const unanswered = visibleQuestions.filter(q => state.answers[q.qid] === undefined);
+        if (unanswered.length > 0) {
           warningMessage.textContent = 'Please answer all questions to proceed.';
           warningBanner.style.display = 'flex';
           
           // Scroll to first unanswered dynamic question
-          const firstUnanswered = state.questions.find(q => !state.answers[q.qid]);
-          if (firstUnanswered) {
-            const card = document.querySelector(`[onclick*="selectDynamicResponse"][onclick*="'${firstUnanswered.qid}'"]`);
-            if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          const firstUnanswered = unanswered[0];
+          const card = document.querySelector(`[onclick*="selectDynamicResponse"][onclick*="'${firstUnanswered.qid}'"]`);
+          if (card) card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          return;
+        }
+
+        // 2. Check for empty "Other" custom specifications
+        const emptyOther = visibleQuestions.filter(q => state.answers[q.qid] === 'Other');
+        if (emptyOther.length > 0) {
+          warningMessage.textContent = "Please specify details for 'Other'.";
+          warningBanner.style.display = 'flex';
+          
+          const firstEmptyOther = emptyOther[0];
+          const otherInput = document.getElementById(`other-input-${firstEmptyOther.qid}`);
+          if (otherInput) {
+            otherInput.focus();
+            otherInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
           }
           return;
         }
@@ -3522,6 +3739,9 @@
       strengthFill.style.backgroundColor = fillColor;
       strengthText.textContent = label;
       strengthText.style.color = fillColor;
+
+      const inferredLevel = inferExperienceFromText(text);
+      updateStarPreview('draft-star-preview', 'draft-star-text', inferredLevel);
     }
 
     // Option 1: Update Star Rating simulation preview
@@ -3540,7 +3760,7 @@
           parent.classList.add('star-good');
         } else if (ratingVal === 'Average') {
           parent.classList.add('star-average');
-        } else if (ratingVal === 'Needs Improvement') {
+        } else if (ratingVal === 'Needs Improvement' || ratingVal === 'Poor') {
           parent.classList.add('star-poor');
         }
       }
@@ -3554,9 +3774,9 @@
       } else if (ratingVal === 'Average') {
         starCount = 3;
         ratingText = 'Average (3/5)';
-      } else if (ratingVal === 'Needs Improvement') {
+      } else if (ratingVal === 'Needs Improvement' || ratingVal === 'Poor') {
         starCount = 2;
-        ratingText = 'Needs Improvement (2/5)';
+        ratingText = 'Poor (2/5)';
       }
 
       if (textField) {
@@ -3587,9 +3807,22 @@
     // Simulated loading and review display
     // Dynamic review generation (API 2) or static fallback
     async function generateReviewProcess() {
-      document.getElementById('assistant-form').style.display = 'none';
-      document.getElementById('progress-wrapper').style.display = 'none';
+      // Keep form and stepper visible, disable the Next button during loading state
+      const btnNext = document.getElementById('btn-next');
+      if (btnNext) {
+        btnNext.disabled = true;
+        btnNext.classList.add('btn-disabled');
+        const btnText = btnNext.querySelector('span');
+        if (btnText) btnText.textContent = 'Generating...';
+      }
+
       toggleLoadingScreen(true);
+      
+      // Scroll to loading screen
+      const loadingScreen = document.getElementById('loading-screen');
+      if (loadingScreen) {
+        loadingScreen.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
 
       // Hide variants tabs by default
       const tabsContainer = document.getElementById('variants-tab-container');
@@ -3601,7 +3834,7 @@
           const url = API_CONFIG.getGenerationUrl(locId);
           
           const answeredQuestions = state.questions
-            .filter(q => state.answers[q.qid] !== undefined)
+            .filter(q => isQuestionVisible(q) && state.answers[q.qid] !== undefined)
             .map(q => ({
               ...q,
               userResp: state.answers[q.qid]
@@ -3655,6 +3888,13 @@
           const data = await response.json();
           console.log("AI Generation Response payload:", data);
           toggleLoadingScreen(false);
+          
+          if (btnNext) {
+            btnNext.disabled = false;
+            btnNext.classList.remove('btn-disabled');
+            const btnText = btnNext.querySelector('span');
+            if (btnText) btnText.textContent = 'Update Review';
+          }
 
           if (data && data.resp && data.resp.variants && data.resp.variants.length > 0) {
             function withBusinessName(text) {
@@ -3688,20 +3928,44 @@
           showToast("Error: " + err.message + " (Using fallback)", "error");
           toggleLoadingScreen(false);
           
+          if (btnNext) {
+            btnNext.disabled = false;
+            btnNext.classList.remove('btn-disabled');
+            const btnText = btnNext.querySelector('span');
+            if (btnText) {
+              const hasDraft = state.apiVariants && state.apiVariants.length > 0;
+              btnText.textContent = hasDraft ? 'Update Review' : 'Generate Review';
+            }
+          }
+          
           // Force fallback to static generation
-          state.isDynamic = false;
           generateStaticReview();
         }
       } else {
         // Fallback static generation
         setTimeout(() => {
           toggleLoadingScreen(false);
+          if (btnNext) {
+            btnNext.disabled = false;
+            btnNext.classList.remove('btn-disabled');
+            const btnText = btnNext.querySelector('span');
+            if (btnText) btnText.textContent = 'Update Review';
+          }
           generateStaticReview();
         }, 1000);
       }
     }
 
     function generateStaticReview() {
+      // Ensure Generate button state is restored
+      const btnNext = document.getElementById('btn-next');
+      if (btnNext) {
+        btnNext.disabled = false;
+        btnNext.classList.remove('btn-disabled');
+        const btnText = btnNext.querySelector('span');
+        if (btnText) btnText.textContent = 'Update Review';
+      }
+
       const reviewText = generateReviewDraftText();
       document.getElementById('draft-textarea').value = reviewText;
       updateStarPreview('draft-star-preview', 'draft-star-text', state.experience);
@@ -4370,6 +4634,7 @@
       const detailEl = document.getElementById('detail-text');
       if (detailEl) state.detail = detailEl.value.trim();
 
+      const btnNext = document.getElementById('btn-next');
       if (state.isDynamic) {
         // For dynamic: hide draft, show shimmer, then generate via API
         document.getElementById('draft-section').style.display = 'none';
@@ -4380,6 +4645,13 @@
 
         draftSection.style.display = 'none';
         toggleLoadingScreen(true);
+
+        if (btnNext) {
+          btnNext.disabled = true;
+          btnNext.classList.add('btn-disabled');
+          const btnText = btnNext.querySelector('span');
+          if (btnText) btnText.textContent = 'Generating...';
+        }
 
         setTimeout(() => {
           const reviewText = generateReviewDraftText();
@@ -4393,6 +4665,13 @@
           draftSection.style.display = 'block';
           showToast('Draft updated with a new version.');
           setTimeout(scrollToDraft, 100);
+
+          if (btnNext) {
+            btnNext.disabled = false;
+            btnNext.classList.remove('btn-disabled');
+            const btnText = btnNext.querySelector('span');
+            if (btnText) btnText.textContent = 'Update Review';
+          }
         }, 1200);
       }
     }
@@ -4440,11 +4719,11 @@
       const btnCopyOpen = document.getElementById('btn-copy-open');
 
       if (isConfirmChecked) {
-        btnCopy.classList.remove('btn-disabled');
-        btnCopyOpen.classList.remove('btn-disabled');
+        if (btnCopy) btnCopy.classList.remove('btn-disabled');
+        if (btnCopyOpen) btnCopyOpen.classList.remove('btn-disabled');
       } else {
-        btnCopy.classList.add('btn-disabled');
-        btnCopyOpen.classList.add('btn-disabled');
+        if (btnCopy) btnCopy.classList.add('btn-disabled');
+        if (btnCopyOpen) btnCopyOpen.classList.add('btn-disabled');
       }
     }
 
@@ -4763,6 +5042,8 @@
       // Clear saved draft state on success so subsequent visits start fresh
       clearSessionState();
       
+      document.getElementById('assistant-form').style.display = 'none';
+      document.getElementById('progress-wrapper').style.display = 'none';
       document.getElementById('draft-section').style.display = 'none';
       document.getElementById('success-screen').style.display = 'block';
       scrollToForm();
@@ -4847,6 +5128,16 @@
       updateActionButtonsState(false);
 
       document.getElementById('success-screen').style.display = 'none';
+      
+      const btnNext = document.getElementById('btn-next');
+      if (btnNext) {
+        btnNext.disabled = false;
+        btnNext.classList.remove('btn-disabled');
+        const btnText = btnNext.querySelector('span');
+        if (btnText) btnText.textContent = 'Generate Review';
+      }
+
+      document.getElementById('draft-section').style.display = 'none';
       document.getElementById('progress-wrapper').style.display = 'block';
       document.getElementById('assistant-form').style.display = 'block';
       
