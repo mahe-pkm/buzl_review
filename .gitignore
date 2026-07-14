@@ -15,6 +15,7 @@ Desktop.ini
 # Project custom ignores
 Ver2/
 Example folder/
+site-generator/
 *.pdf
 diagnose.html
 *.pem
